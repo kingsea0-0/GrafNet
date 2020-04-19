@@ -1,0 +1,4 @@
+{
+  "test_demo.py": true,
+  "test_demo.py::DataTest::testLoadDoc": true
+}
