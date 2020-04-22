@@ -16,10 +16,9 @@ def get_config(config_path="config.yml"):
     return config
 
 def use_cuda(var):
-    if torch.cuda.is_available():
-        return var.cuda()
-    else:
-        return var
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    return var.to(device)
+
 
 def save_model(the_model, path):
     if os.path.exists(path):

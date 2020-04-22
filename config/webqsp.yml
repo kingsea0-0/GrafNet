@@ -1,5 +1,5 @@
 name: 'webqsp'
-data_folder: 'datasets/webqsp/full/'
+data_folder: '../datasets/webqsp/full/'
 train_data: 'train.json'
 train_documents: 'documents.json'
 dev_data: 'dev.json'
@@ -17,9 +17,9 @@ relation_emb_file: "relation_emb_100d.npy"
 relation_kge_file: "relation_kge_100d.npy"
 
 to_save_model: True
-save_model_file: "model/webqsp/best_model_hybrid"
-pred_file: "model/webqsp/pred_hybrid"
-load_model_file: "model/webqsp/best_model_hybrid"
+save_model_file: "../model/webqsp/best_model_hybrid"
+pred_file: "../model/webqsp/pred_hybrid"
+load_model_file: "../model/webqsp/best_model_hybrid"
 
 # graph options
 fact_dropout: 0.1

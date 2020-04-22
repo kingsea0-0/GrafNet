@@ -9,88 +9,97 @@ VERY_NEG_NUMBER = -100000000000
 
 
 class GraftNet(nn.Module):
-    def __init__(self, pretrained_word_embedding_file, pretrained_entity_emb_file, pretrained_entity_kge_file, pretrained_relation_emb_file, pretrained_relation_kge_file, num_layer, num_relation, num_entity, num_word, entity_dim, word_dim, kge_dim, pagerank_lambda, fact_scale, lstm_dropout, linear_dropout, use_kb, use_doc):
+    # def __init__(self, pretrained_word_embedding_file, pretrained_entity_emb_file, pretrained_entity_kge_file, pretrained_relation_emb_file, pretrained_relation_kge_file, num_layer, num_relation, num_entity, num_word, entity_dim, word_dim, kge_dim, pagerank_lambda, fact_scale, lstm_dropout, linear_dropout, use_kb, use_doc):
+    def __init__(self,num_relation, num_entity, num_word, cfg):
         """
         num_relation: number of relation including self-connection
         """
         super(GraftNet, self).__init__()
-        self.num_layer = num_layer
+        pretrained_word_embedding_file = None if cfg['word_emb_file'] is None else cfg['data_folder'] + cfg['word_emb_file']
+        pretrained_entity_emb_file = None if cfg['entity_emb_file'] is None else cfg['data_folder'] + cfg['entity_emb_file']
+        pretrained_entity_kge_file = None if cfg['entity_kge_file'] is None else cfg['data_folder'] + cfg['entity_kge_file']
+        pretrained_relation_emb_file = None if cfg['relation_emb_file'] is None else cfg['data_folder'] + cfg['relation_emb_file']
+        pretrained_relation_kge_file = None if cfg['relation_kge_file'] is None else cfg['data_folder'] + cfg['relation_kge_file']
+
+        self.num_layer = cfg["num_layer"]
         self.num_relation = num_relation
         self.num_entity = num_entity
         self.num_word = num_word
-        self.entity_dim = entity_dim
-        self.word_dim = word_dim
-        self.pagerank_lambda = pagerank_lambda
-        self.fact_scale = fact_scale
+        self.entity_dim = cfg["entity_dim"]
+        self.word_dim = cfg["word_dim"]
+        self.kge_dim = cfg["kge_dim"]
+        self.pagerank_lambda = cfg["pagerank_lambda"]
+        self.fact_scale = cfg["fact_scale"]
         self.has_entity_kge = False
         self.has_relation_kge = False
-        self.use_kb = use_kb
-        self.use_doc = use_doc
-
+        self.use_kb = cfg["use_kb"]
+        self.use_doc = cfg["use_doc"]
+        self.lstm_dropout = cfg["lstm_dropout"]
+        self.linear_dropout = cfg["linear_dropout"]
         # initialize entity embedding
-        self.entity_embedding = nn.Embedding(num_embeddings=num_entity + 1, embedding_dim=word_dim, padding_idx=num_entity)
+        self.entity_embedding = nn.Embedding(num_embeddings=num_entity + 1, embedding_dim=self.word_dim, padding_idx=num_entity)
         if pretrained_entity_emb_file is not None:
             self.entity_embedding.weight = nn.Parameter(torch.from_numpy(np.pad(np.load(pretrained_entity_emb_file), ((0, 1), (0, 0)), 'constant')).type('torch.FloatTensor'))
             self.entity_embedding.weight.requires_grad = False
         if pretrained_entity_kge_file is not None:
             self.has_entity_kge = True
-            self.entity_kge = nn.Embedding(num_embeddings=num_entity + 1, embedding_dim=kge_dim, padding_idx=num_entity)
+            self.entity_kge = nn.Embedding(num_embeddings=num_entity + 1, embedding_dim=self.kge_dim, padding_idx=num_entity)
             self.entity_kge.weight = nn.Parameter(torch.from_numpy(np.pad(np.load(pretrained_entity_kge_file), ((0, 1), (0, 0)), 'constant')).type('torch.FloatTensor'))
             self.entity_kge.weight.requires_grad = False
         
         if self.has_entity_kge:
-            self.entity_linear = nn.Linear(in_features=word_dim + kge_dim, out_features=entity_dim)
+            self.entity_linear = nn.Linear(in_features=self.word_dim + self.kge_dim, out_features=self.entity_dim)
         else:
-            self.entity_linear = nn.Linear(in_features=word_dim, out_features=entity_dim)
+            self.entity_linear = nn.Linear(in_features=self.word_dim, out_features=self.entity_dim)
 
         # initialize relation embedding
-        self.relation_embedding = nn.Embedding(num_embeddings=num_relation + 1, embedding_dim=2 * word_dim, padding_idx=num_relation)
+        self.relation_embedding = nn.Embedding(num_embeddings=num_relation + 1, embedding_dim=2 * self.word_dim, padding_idx=num_relation)
         if pretrained_relation_emb_file is not None:
             self.relation_embedding.weight = nn.Parameter(torch.from_numpy(np.pad(np.load(pretrained_relation_emb_file), ((0, 1), (0, 0)), 'constant')).type('torch.FloatTensor'))
         if pretrained_relation_kge_file is not None:
             self.has_relation_kge = True
-            self.relation_kge = nn.Embedding(num_embeddings=num_relation + 1, embedding_dim=kge_dim, padding_idx=num_relation)
+            self.relation_kge = nn.Embedding(num_embeddings=num_relation + 1, embedding_dim=self.kge_dim, padding_idx=num_relation)
             self.relation_kge.weight = nn.Parameter(torch.from_numpy(np.pad(np.load(pretrained_relation_kge_file), ((0, 1), (0, 0)), 'constant')).type('torch.FloatTensor'))
         
         if self.has_relation_kge:
-            self.relation_linear = nn.Linear(in_features=2 * word_dim + kge_dim, out_features=entity_dim)
+            self.relation_linear = nn.Linear(in_features=2 * self.word_dim + self.kge_dim, out_features=self.entity_dim)
         else:
-            self.relation_linear = nn.Linear(in_features=2 * word_dim, out_features=entity_dim)
+            self.relation_linear = nn.Linear(in_features=2 * self.word_dim, out_features=self.entity_dim)
         
         # create linear functions
         self.k = 2 + (self.use_kb or self.use_doc)
         for i in range(self.num_layer):
-            self.add_module('q2e_linear' + str(i), nn.Linear(in_features=entity_dim, out_features=entity_dim))
-            self.add_module('d2e_linear' + str(i), nn.Linear(in_features=entity_dim, out_features=entity_dim))
-            self.add_module('e2q_linear' + str(i), nn.Linear(in_features=self.k * entity_dim, out_features=entity_dim))
-            self.add_module('e2d_linear' + str(i), nn.Linear(in_features=self.k * entity_dim, out_features=entity_dim))
-            self.add_module('e2e_linear' + str(i), nn.Linear(in_features=self.k * entity_dim, out_features=entity_dim))
+            self.add_module('q2e_linear' + str(i), nn.Linear(in_features=self.entity_dim, out_features=self.entity_dim))
+            self.add_module('d2e_linear' + str(i), nn.Linear(in_features=self.entity_dim, out_features=self.entity_dim))
+            self.add_module('e2q_linear' + str(i), nn.Linear(in_features=self.k * self.entity_dim, out_features=self.entity_dim))
+            self.add_module('e2d_linear' + str(i), nn.Linear(in_features=self.k * self.entity_dim, out_features=self.entity_dim))
+            self.add_module('e2e_linear' + str(i), nn.Linear(in_features=self.k * self.entity_dim, out_features=self.entity_dim))
             
             if self.use_kb:
-                self.add_module('kb_head_linear' + str(i), nn.Linear(in_features=entity_dim, out_features=entity_dim))
-                self.add_module('kb_tail_linear' + str(i), nn.Linear(in_features=entity_dim, out_features=entity_dim))
-                self.add_module('kb_self_linear' + str(i), nn.Linear(in_features=entity_dim, out_features=entity_dim))
+                self.add_module('kb_head_linear' + str(i), nn.Linear(in_features=self.entity_dim, out_features=self.entity_dim))
+                self.add_module('kb_tail_linear' + str(i), nn.Linear(in_features=self.entity_dim, out_features=self.entity_dim))
+                self.add_module('kb_self_linear' + str(i), nn.Linear(in_features=self.entity_dim, out_features=self.entity_dim))
 
         # initialize text embeddings
-        self.word_embedding = nn.Embedding(num_embeddings=num_word + 1, embedding_dim=word_dim, padding_idx=num_word)
+        self.word_embedding = nn.Embedding(num_embeddings=num_word + 1, embedding_dim=self.word_dim, padding_idx=num_word)
         if pretrained_word_embedding_file is not None:
             self.word_embedding.weight = nn.Parameter(torch.from_numpy(np.pad(np.load(pretrained_word_embedding_file), ((0, 1), (0, 0)), 'constant')).type('torch.FloatTensor'))
             self.word_embedding.weight.requires_grad = False
         
         # create LSTMs
-        self.node_encoder = nn.LSTM(input_size=word_dim, hidden_size=entity_dim, batch_first=True, bidirectional=False)
-        self.query_rel_encoder = nn.LSTM(input_size=word_dim, hidden_size=entity_dim, batch_first=True, bidirectional=False) # not used
-        self.bi_text_encoder = nn.LSTM(input_size=word_dim, hidden_size=entity_dim, batch_first=True, bidirectional=True)
-        self.doc_info_carrier = nn.LSTM(input_size=entity_dim, hidden_size=entity_dim, batch_first=True, bidirectional=True)
+        self.node_encoder = nn.LSTM(input_size=self.word_dim, hidden_size=self.entity_dim, batch_first=True, bidirectional=False)
+        self.query_rel_encoder = nn.LSTM(input_size=self.word_dim, hidden_size=self.entity_dim, batch_first=True, bidirectional=False) # not used
+        self.bi_text_encoder = nn.LSTM(input_size=self.word_dim, hidden_size=self.entity_dim, batch_first=True, bidirectional=True)
+        self.doc_info_carrier = nn.LSTM(input_size=self.entity_dim, hidden_size=self.entity_dim, batch_first=True, bidirectional=True)
         # dropout
-        self.lstm_drop = nn.Dropout(p=lstm_dropout)
-        self.linear_drop = nn.Dropout(p=linear_dropout)
+        self.lstm_drop = nn.Dropout(p=self.lstm_dropout)
+        self.linear_drop = nn.Dropout(p=self.linear_dropout)
         # non-linear activation
         self.relu = nn.ReLU()
         self.sigmoid = nn.Sigmoid()
         self.elu = nn.ELU()
         # scoring function
-        self.score_func = nn.Linear(in_features=entity_dim, out_features=1)
+        self.score_func = nn.Linear(in_features=self.entity_dim, out_features=1)
         # loss
         self.log_softmax = nn.LogSoftmax(dim=1) # pylint: disable=E1123
         self.softmax_d1 = nn.Softmax(dim=1)
