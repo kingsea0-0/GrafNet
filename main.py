@@ -64,7 +64,7 @@ def train(cfg):
                     train_writer.add_scalar('train_loss',loss,steps)
                     train_writer.add_scalar('trian_acc',acc,steps)
                     train_writer.add_scalar('train max_acc',max_acc)
-                train_loss.append(loss.data[0])
+                train_loss.append(loss.item())
                 train_acc.append(acc)
                 train_max_acc.append(max_acc)
                 # back propogate
