@@ -47,3 +47,6 @@ linear_dropout: 0.2
 is_debug: False
 
 
+# tensorboardX path
+train_log_path: "logs/exp1/train"
+valid_log_path: "logs/exp1/valid"

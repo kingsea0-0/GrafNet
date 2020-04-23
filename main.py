@@ -114,7 +114,6 @@ def inference(my_model, valid_data, entity2id, cfg, log_info=False):
         eval_loss.append(loss.item())
         eval_acc.append(acc)
         eval_max_acc.append(max_acc)
-
     print('avg_loss', sum(eval_loss) / len(eval_loss))
     print('max_acc', sum(eval_max_acc) / len(eval_max_acc))
     print('avg_acc', sum(eval_acc) / len(eval_acc))
