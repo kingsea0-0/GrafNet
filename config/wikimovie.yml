@@ -21,7 +21,7 @@ save_model_file: "model/repro/wikimovie/test1/best_model_doc"
 #pred_file: "model/repro/wikimovie/pred_doc"
 #load_model_file: "model/repro/wikimovie/best_model_doc"
 pred_file: "model/repro/wikimovie/test1/pred_doc"
-#load_model_file: None
+load_model_file: null
 
 # graph options
 fact_dropout: 0.0
