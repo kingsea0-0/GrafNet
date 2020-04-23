@@ -17,9 +17,11 @@ relation_emb_file: null
 relation_kge_file: null 
 
 to_save_model: True
-save_model_file: "model/repro/wikimovie/best_model_doc"
-pred_file: "model/repro/wikimovie/pred_doc"
-load_model_file: "model/repro/wikimovie/best_model_doc"
+save_model_file: "model/repro/wikimovie/test1/best_model_doc"
+#pred_file: "model/repro/wikimovie/pred_doc"
+#load_model_file: "model/repro/wikimovie/best_model_doc"
+pred_file: "model/repro/wikimovie/test1/pred_doc"
+load_model_file: None
 
 # graph options
 fact_dropout: 0.0
