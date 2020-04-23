@@ -2,7 +2,7 @@ import sys
 import torch
 from tqdm import tqdm
 import numpy as np
-
+from tensorboardX import SummaryWriter
 from data_loader import DataLoader
 from graftnet import GraftNet
 from util import use_cuda, save_model, load_model, get_config, load_dict, cal_accuracy
@@ -43,6 +43,10 @@ def train(cfg):
     optimizer = torch.optim.Adam(trainable_parameters, lr=cfg['learning_rate'])
 
     best_dev_acc = 0.0
+
+    train_writer = SummaryWriter(cfg["train_log_path"])
+    valid_writer = SummaryWriter(cfg["valid_log_path"])
+    steps = 0
     for epoch in range(cfg['num_epoch']):
         try:
             print('epoch', epoch)
@@ -51,10 +55,15 @@ def train(cfg):
             my_model.train()
             train_loss, train_acc, train_max_acc = [], [], []
             for iteration in tqdm(range(train_data.num_data // cfg['batch_size'])):
+                steps+=1
                 batch = train_data.get_batch(iteration, cfg['batch_size'], cfg['fact_dropout'])
                 loss, pred, _ = my_model(batch)
                 pred = pred.data.cpu().numpy()
                 acc, max_acc = cal_accuracy(pred, batch[-1])
+                if steps%200==0:
+                    train_writer.add_scalar('train_loss',loss,steps)
+                    train_writer.add_scalar('trian_acc',acc,steps)
+                    train_writer.add_scalar('train max_acc',max_acc)
                 train_loss.append(loss.data[0])
                 train_acc.append(acc)
                 train_max_acc.append(max_acc)
@@ -67,9 +76,9 @@ def train(cfg):
             print('avg_training_loss', sum(train_loss) / len(train_loss))
             print('max_training_acc', sum(train_max_acc) / len(train_max_acc))
             print('avg_training_acc', sum(train_acc) / len(train_acc))
-
             print("validating ...")
             eval_acc = inference(my_model, valid_data, entity2id, cfg)
+            valid_writer.add_scalar('valid_acc',eval_acc,epoch)
             if eval_acc > best_dev_acc and cfg['to_save_model']:
                 print("saving model to", cfg['save_model_file'])
                 torch.save(my_model.state_dict(), cfg['save_model_file'])
@@ -83,7 +92,6 @@ def train(cfg):
     print('loading model from ...', cfg['save_model_file'])
     my_model.load_state_dict(torch.load(cfg['save_model_file']))
     test_acc = inference(my_model, test_data, entity2id, cfg, log_info=True)
-
     return test_acc
 
 
